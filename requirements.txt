@@ -4,6 +4,5 @@ pandas
 numpy
 matplotlib
 scikit-learn
-ta
 keras
 tensorflow
