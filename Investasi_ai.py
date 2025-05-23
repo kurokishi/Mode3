@@ -2,9 +2,12 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 from sklearn.linear_model import LinearRegression
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout, MinMaxScaler
 
 # --- Fungsi bantu ---
 def load_portfolio():
@@ -63,9 +66,7 @@ def prediksi_harga_masa_depan(ticker, hari_ke_depan=30):
 
 def alokasi_otomatis(modal, portfolio):
     rekomendasi = []
-    harga_terkini = {}
     undervalued = []
-
     for saham in portfolio:
         kode = saham["Kode"]
         harga_beli = saham["Harga_Beli"]
@@ -87,6 +88,38 @@ def alokasi_otomatis(modal, portfolio):
             rekomendasi.append(f"Beli {lot_beli} lot {kode} @Rp{int(harga)} (alokasi Rp{int(lot_beli * harga * 100):,})")
 
     return rekomendasi if rekomendasi else ["Modal tidak cukup untuk pembelian minimal 1 lot."]
+
+def prediksi_lstm(ticker):
+    try:
+        df = yf.Ticker(ticker + ".JK").history(period="6mo")["Close"].values.reshape(-1, 1)
+        scaler = MinMaxScaler()
+        df_scaled = scaler.fit_transform(df)
+
+        x_train, y_train = [], []
+        for i in range(60, len(df_scaled)):
+            x_train.append(df_scaled[i-60:i, 0])
+            y_train.append(df_scaled[i, 0])
+
+        x_train, y_train = np.array(x_train), np.array(y_train)
+        x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+
+        model = Sequential()
+        model.add(LSTM(units=50, return_sequences=True, input_shape=(x_train.shape[1], 1)))
+        model.add(Dropout(0.2))
+        model.add(LSTM(units=50))
+        model.add(Dropout(0.2))
+        model.add(Dense(1))
+
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        model.fit(x_train, y_train, epochs=5, batch_size=32, verbose=0)
+
+        input_last = df_scaled[-60:]
+        input_last = input_last.reshape(1, 60, 1)
+        pred_scaled = model.predict(input_last)
+        pred = scaler.inverse_transform(pred_scaled)
+        return round(float(pred[0][0]), 2)
+    except:
+        return None
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="AI Saham Pintar", layout="wide")
@@ -143,10 +176,12 @@ if st.button("Hapus Saham"):
     st.session_state.portfolio = [s for s in st.session_state.portfolio if s['Kode'] != kode_hapus]
     st.success(f"Saham {kode_hapus} berhasil dihapus.")
 
-st.header("6. Prediksi Harga Masa Depan")
+st.header("6. Prediksi Harga Masa Depan (Regresi & AI)")
 for saham in st.session_state.portfolio:
-    prediksi = prediksi_harga_masa_depan(saham['Kode'], hari_ke_depan=30)
-    if prediksi:
-        st.write(f"📊 Prediksi harga {saham['Kode']} dalam 30 hari ke depan: Rp {prediksi:,}")
-    else:
-        st.write(f"❌ Tidak bisa memprediksi harga {saham['Kode']}.")
+    pred_reg = prediksi_harga_masa_depan(saham['Kode'], hari_ke_depan=30)
+    pred_lstm = prediksi_lstm(saham['Kode'])
+    if pred_reg:
+        st.write(f"📊 [Regresi] Prediksi harga {saham['Kode']} dalam 30 hari: Rp {pred_reg:,}")
+    if pred_lstm:
+        st.write(f"🤖 [AI LSTM] Prediksi harga {saham['Kode']} dalam 30 hari: Rp {pred_lstm:,}")
+        
