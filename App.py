@@ -2,9 +2,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from ta.trend import SMAIndicator
-from ta.momentum import RSIIndicator
-from ta.trend import MACD
 from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime, timedelta
 from keras.models import Sequential
@@ -19,12 +16,30 @@ def calculate_fair_value(ticker):
     pe_industry_avg = 15
     return earnings * pe_industry_avg
 
+def calculate_sma(data, window):
+    return data.rolling(window=window).mean()
+
+def calculate_rsi(data, period=14):
+    delta = data.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_macd(data):
+    ema12 = data.ewm(span=12, adjust=False).mean()
+    ema26 = data.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    return macd, signal
+
 def plot_technical_indicators(df):
-    df['SMA20'] = SMAIndicator(df['Close'], window=20).sma_indicator()
-    df['RSI'] = RSIIndicator(df['Close'], window=14).rsi()
-    macd = MACD(df['Close'])
-    df['MACD'] = macd.macd()
-    df['MACD_signal'] = macd.macd_signal()
+    df['SMA20'] = calculate_sma(df['Close'], window=20)
+    df['RSI'] = calculate_rsi(df['Close'])
+    df['MACD'], df['MACD_signal'] = calculate_macd(df['Close'])
 
     fig, axs = plt.subplots(3, 1, figsize=(10, 10))
     axs[0].plot(df['Close'], label='Close')
@@ -45,7 +60,7 @@ def plot_technical_indicators(df):
     plt.tight_layout()
     return fig
 
-# ... [functions price_forecast, average_down_strategy, compound_growth, etc. remain unchanged]
+# Fungsi lain (price_forecast, average_down_strategy, dll) tetap seperti sebelumnya.
 
 # ====================== Streamlit App =========================
 st.title("Aplikasi Analisa Saham Profesional")
@@ -116,3 +131,4 @@ if st.button("Analisa Saham"):
     st.subheader("13. Grafik Teknis (SMA, RSI, MACD)")
     fig = plot_technical_indicators(df_data)
     st.pyplot(fig)
+    
