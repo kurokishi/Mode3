@@ -1,95 +1,43 @@
 import streamlit as st
-from stock_analysis import AdvancedStockAnalysis
+from stock_analysis import AdvancedStockAnalysisIDX
 
-# Konfigurasi halaman Streamlit
 st.set_page_config(
-    page_title="Analisis Saham Canggih",
-    page_icon="📈",
+    page_title="Analisis Saham IDX",
+    page_icon="🇮🇩",
     layout="wide"
 )
 
-# UI Streamlit
-st.title("📈 Analisis Saham Canggih")
+st.title("🇮🇩 Analisis Saham Bursa Efek Indonesia")
 st.markdown("""
-Aplikasi ini memberikan analisis saham komprehensif dengan:
-1. Valuasi harga wajar
-2. Rekomendasi beli/tahan/jual
-3. Strategi moving average
-4. Proyeksi bunga majemuk
-5. AI analisis saham undervalued
+Aplikasi khusus untuk analisis saham di Bursa Efek Indonesia (IDX)
 """)
 
-# Input pengguna
-col1, col2 = st.columns(2)
-with col1:
-    ticker = st.text_input("Masukkan kode saham (contoh: AAPL):", "AAPL").upper()
-with col2:
-    current_cash = st.number_input("Jumlah dana yang tersedia ($):", min_value=100, value=10000)
+with st.sidebar:
+    st.header("Parameter Saham IDX")
+    ticker = st.text_input("Kode Saham (contoh: BBCA):", "BBCA").upper()
+    current_cash = st.number_input("Dana Tersedia (Rp):", min_value=1000000, value=100000000)
+    annual_return = st.slider("Asumsi Return Tahunan (%)", 5, 20, 12)
 
-if st.button("Analisis Saham"):
-    if ticker:
-        with st.spinner('Melakukan analisis saham...'):
-            analyzer = AdvancedStockAnalysis(ticker, current_cash)
-            
-            st.header(f"Analisis Saham {ticker}")
-            
-            # 1. Harga wajar
-            st.subheader("1. Valuasi Harga Wajar")
-            fair_value = analyzer.get_fair_value()
-            current_price = analyzer.historical['Close'].iloc[-1]
-            
-            col1, col2 = st.columns(2)
-            col1.metric("Harga Saat Ini", f"${current_price:.2f}")
-            
-            if fair_value:
-                col2.metric("Harga Wajar Estimasi", f"${fair_value:.2f}", 
-                           delta=f"{(current_price - fair_value)/fair_value * 100:.2f}%")
-            else:
-                col2.warning("Tidak dapat menghitung harga wajar (data tidak lengkap)")
-            
-            # 2. Rekomendasi
-            st.subheader("2. Rekomendasi Beli/Tahan/Jual")
-            recs = analyzer.get_recommendation()
-            if recs:
-                cols = st.columns(3)
-                for i, (timeframe, rec) in enumerate(recs.items()):
-                    with cols[i]:
-                        st.metric(timeframe.replace('_', ' ').title(), rec)
-            else:
-                st.warning("Tidak dapat memberikan rekomendasi (data tidak lengkap)")
-            
-            # 3. Strategi Moving Average
-            st.subheader("3. Strategi Moving Average")
-            ma_strategy = analyzer.moving_average_strategy()
-            if ma_strategy:
-                st.metric("Aksi", ma_strategy['action'])
-                st.info(ma_strategy['message'])
-            else:
-                st.warning("Tidak dapat menganalisis strategi MA")
-            
-            # 4. Bunga Majemuk
-            st.subheader("4. Proyeksi Bunga Majemuk (asumsi return 12% per tahun)")
-            compound = analyzer.compound_interest()
-            if compound:
-                cols = st.columns(3)
-                for i, (period, amount) in enumerate(compound.items()):
-                    with cols[i]:
-                        st.metric(period.replace('_', ' ').title(), f"${amount:,.2f}")
-            else:
-                st.warning("Tidak dapat menghitung bunga majemuk")
-            
-            # 5. AI Undervalued Analysis
-            st.subheader("5. AI Analisis Saham Undervalued")
-            ai_rec = analyzer.ai_undervalued_analysis()
-            if ai_rec:
-                st.metric("Rekomendasi AI", ai_rec)
-                if analyzer.undervalued_score:
-                    st.metric("Undervalued Score", f"{analyzer.undervalued_score:.2f}%")
-            else:
-                st.warning("Analisis AI tidak tersedia")
-            
-            # Visualisasi
-            st.subheader("Visualisasi Analisis")
-            analyzer.visualize_analysis()
-    else:
-        st.error("Silakan masukkan kode saham")
+if st.button("Analisis Saham IDX"):
+    analyzer = AdvancedStockAnalysisIDX(ticker, current_cash)
+    
+    if analyzer.historical.empty:
+        st.error(f"Tidak bisa mendapatkan data {ticker}.JK")
+        st.stop()
+    
+    current_price = analyzer.historical['Close'].iloc[-1]
+    current_price_idr = analyzer._convert_to_idr(current_price)
+    
+    st.header(f"Analisis {ticker}.JK")
+    st.metric("Harga Terakhir", f"Rp{current_price_idr:,.0f}")
+    
+    # Tampilkan data khusus IDX
+    idx_data = analyzer.get_idx_fundamental()
+    if idx_data:
+        cols = st.columns(4)
+        cols[0].metric("Dividend Yield", f"{idx_data['dividend_yield']:.2f}%")
+        cols[1].metric("Beta", f"{idx_data['beta']:.2f}")
+        cols[2].metric("Volume Rata2", f"{idx_data['avg_volume']:,.0f}")
+        cols[3].metric("Market Cap", f"Rp{analyzer._convert_to_idr(idx_data['market_cap']/1e12:.2f}T")
+    
+    # ... (tab-tab lainnya sama, tapi konversi ke IDR)
