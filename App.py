@@ -38,6 +38,29 @@ if st.button("Analisis Saham IDX"):
         cols[0].metric("Dividend Yield", f"{idx_data['dividend_yield']:.2f}%")
         cols[1].metric("Beta", f"{idx_data['beta']:.2f}")
         cols[2].metric("Volume Rata2", f"{idx_data['avg_volume']:,.0f}")
-        cols[3].metric("Market Cap", f"Rp{analyzer._convert_to_idr(idx_data['market_cap']/1e12:.2f}T")
+        market_cap_trillion = analyzer._convert_to_idr(idx_data['market_cap']) / 1e12
+        cols[3].metric("Market Cap", f"Rp{market_cap_trillion:.2f}T")
     
-    # ... (tab-tab lainnya sama, tapi konversi ke IDR)
+    # Tab untuk berbagai analisis
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Valuasi", "Rekomendasi", "Strategi MA", 
+        "Proyeksi", "AI Analisis"
+    ])
+    
+    with tab1:
+        st.subheader("Valuasi Harga Wajar")
+        fair_value = analyzer.get_fair_value()
+        
+        if fair_value:
+            fair_value_idr = analyzer._convert_to_idr(fair_value)
+            current_price_idr = analyzer._convert_to_idr(current_price)
+            
+            col1, col2 = st.columns(2)
+            col1.metric("Harga Wajar", f"Rp{fair_value_idr:,.0f}")
+            discount = (current_price - fair_value) / fair_value * 100
+            col2.metric("Premium/Diskon", f"{discount:.2f}%", 
+                       "Undervalued" if discount < 0 else "Overvalued")
+        else:
+            st.warning("Data tidak cukup untuk valuasi")
+    
+    # ... (tab-tab lainnya tetap sama seperti sebelumnya)
